@@ -114,13 +114,7 @@ staitc TaskHandle_t xFSMTaskHandle;
 static QueueHandle_t xLayer1Queue;
 static int param = 1;
 /* USER CODE END Variables */
-/* Definitions for init */
-osThreadId_t initHandle;
-const osThreadAttr_t init_attributes = {
-  .name = "init",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
+osThreadId initHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -230,9 +224,12 @@ static void vCPUTaskEntry(void *parameter)
 #endif
 /* USER CODE END FunctionPrototypes */
 
-void INIT(void *argument);
+void INIT(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
+
+/* GetIdleTaskMemory prototype (linked to static allocation support) */
+void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize );
 
 /* Hook prototypes */
 void configureTimerForRunTimeStats(void);
@@ -263,6 +260,19 @@ void vApplicationTickHook( void )
   vTimeEventTickFromISR();
 }
 /* USER CODE END 3 */
+
+/* USER CODE BEGIN GET_IDLE_TASK_MEMORY */
+static StaticTask_t xIdleTaskTCBBuffer;
+static StackType_t xIdleStack[configMINIMAL_STACK_SIZE];
+
+void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize )
+{
+  *ppxIdleTaskTCBBuffer = &xIdleTaskTCBBuffer;
+  *ppxIdleTaskStackBuffer = &xIdleStack[0];
+  *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
+  /* place for user code */
+}
+/* USER CODE END GET_IDLE_TASK_MEMORY */
 
 /**
   * @brief  FreeRTOS initialization
@@ -319,7 +329,7 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
- #ifdef MULI_TASK_FSM
+#ifdef MULI_TASK_FSM
   xTimer1 = xTimerCreate("Timer1", 1, pdTRUE, (void *) 1, vTimer1Callback);
   if (xTimer1 != NULL) {
     xTimerStart(xTimer1, 0);
@@ -342,18 +352,15 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of init */
-  initHandle = osThreadNew(INIT, NULL, &init_attributes);
+  /* definition and creation of init */
+  osThreadDef(init, INIT, osPriorityNormal, 0, 128);
+  initHandle = osThreadCreate(osThread(init), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   xTaskCreate(vFSMTaskEntry, "fsm", (uint16_t) 128 * 4, (void *) NULL, tskIDLE_PRIORITY + 1, &xFSMTaskHandle);
-  /* USER CODE END RTOS_THREADS */
-
-  /* USER CODE BEGIN RTOS_EVENTS */
-  /* add events, ... */
 #endif
-  /* USER CODE END RTOS_EVENTS */
+  /* USER CODE END RTOS_THREADS */
 
 }
 
@@ -365,7 +372,7 @@ void MX_FREERTOS_Init(void) {
   * @retval None
   */
 /* USER CODE END Header_INIT */
-__weak void INIT(void *argument)
+__weak void INIT(void const * argument)
 {
   /* USER CODE BEGIN INIT */
   /* Infinite loop */
