@@ -67,6 +67,7 @@ enum xEventSignals {
   SENSOR1_SIG = USER_SIG,
   SENSOR2_SIG,
   SENSOR3_SIG,
+  CPU_SIG
 };
 
 typedef struct {
@@ -74,14 +75,18 @@ typedef struct {
   xTimeEvent te1;
   xTimeEvent te2;
   xTimeEvent te3;
+  xTimeEvent cpu;
   uint32_t interval1;
   uint32_t interval2;
   uint32_t interval3;
+  uint32_t interval4;
 } xDataModFsm;
 
-static TaskHandle_t xCPUTaskHandle;
-StaticTask_t xCPUTCB;
-StackType_t xCPUStack[STACK_SIZE];
+//static TaskHandle_t xCPUTaskHandle;
+//StaticTask_t xCPUTCB;
+//StackType_t xCPUStack[STACK_SIZE];
+#define CPU_BUFFER_SIZE 400
+static uint8_t cpu_runinfo[CPU_BUFFER_SIZE];
 #endif
 /* USER CODE END PTD */
 
@@ -180,6 +185,19 @@ static void vDataModFsmDispatch(xDataModFsm * const me, xEvent const * const e) 
     case SENSOR3_SIG:
       __NOP();
       printf("sensor3.\r\n");
+    case CPU_SIG:
+      memset(cpu_runinfo, 0, CPU_BUFFER_SIZE);
+      vTaskList((char *) cpu_runinfo);
+      printf("--------------------------------------------------\r\n");
+      printf("Name                  Status  Prio   Stack     Seq\r\n");
+      printf("%s", cpu_runinfo);
+      printf("--------------------------------------------------\r\n");
+
+      memset(cpu_runinfo, 0, CPU_BUFFER_SIZE);
+      vTaskGetRunTimeStats((char *) cpu_runinfo);
+      printf("Name                  Count          Usage\r\n");
+      printf("%s", cpu_runinfo);
+      printf("--------------------------------------------------\r\n");
     default:
       break;
   }
@@ -190,37 +208,39 @@ void vDataModConstructor(xDataModFsm * const me) {
   vTimeEventConstructor(&me->te1, SENSOR1_SIG, &me->super);
   vTimeEventConstructor(&me->te2, SENSOR2_SIG, &me->super);
   vTimeEventConstructor(&me->te3, SENSOR3_SIG, &me->super);
+  vTimeEventConstructor(&me->cpu, CPU_SIG, &me->super);
   
   me->interval1 = 1000;
   me->interval2 = 2000;
   me->interval3 = 4000;
+  me->interval4 = 8000;
 }
 
 static xDataModFsm x_data_mod_fsm;
 xActive *act_data_mod_fsm = &x_data_mod_fsm.super;
 
-static void vCPUTaskEntry(void *parameter)
-{
-  TickType_t xLastWakeTime;
-  const TickType_t xFrequency = 8000;
-  xLastWakeTime = xTaskGetTickCount();
-  uint8_t *cpu_runinfo = (uint8_t *)pvPortMalloc(400 * sizeof(uint8_t));
-  for (;;) {
-    vTaskDelayUntil(&xLastWakeTime, xFrequency);
-    memset(cpu_runinfo, 0, 400);
-    vTaskList((char *) cpu_runinfo);
-    printf("--------------------------------------------------\r\n");
-    printf("Name                  Status  Prio   Stack     Seq\r\n");
-    printf("%s", cpu_runinfo);
-    printf("--------------------------------------------------\r\n");
+//static void vCPUTaskEntry(void *parameter)
+//{
+//  TickType_t xLastWakeTime;
+//  const TickType_t xFrequency = 8000;
+//  xLastWakeTime = xTaskGetTickCount();
+//  uint8_t *cpu_runinfo = (uint8_t *)pvPortMalloc(400 * sizeof(uint8_t));
+//  for (;;) {
+//    vTaskDelayUntil(&xLastWakeTime, xFrequency);
+//    memset(cpu_runinfo, 0, 400);
+//    vTaskList((char *) cpu_runinfo);
+//    printf("--------------------------------------------------\r\n");
+//    printf("Name                  Status  Prio   Stack     Seq\r\n");
+//    printf("%s", cpu_runinfo);
+//    printf("--------------------------------------------------\r\n");
 
-    memset(cpu_runinfo, 0, 400);
-    vTaskGetRunTimeStats((char *) cpu_runinfo);
-    printf("Name                  Count          Usage\r\n");
-    printf("%s", cpu_runinfo);
-    printf("--------------------------------------------------\r\n");
-  }
-}
+//    memset(cpu_runinfo, 0, 400);
+//    vTaskGetRunTimeStats((char *) cpu_runinfo);
+//    printf("Name                  Count          Usage\r\n");
+//    printf("%s", cpu_runinfo);
+//    printf("--------------------------------------------------\r\n");
+//  }
+//}
 #endif
 /* USER CODE END FunctionPrototypes */
 
@@ -293,7 +313,7 @@ void MX_FREERTOS_Init(void) {
   vActiveStart(
     act_data_mod_fsm, tskIDLE_PRIORITY + 1, DATA_MOD_AO_QUEUE_LEN, STACK_SIZE
   );
-  xCPUTaskHandle = xTaskCreateStatic(vCPUTaskEntry, "cpuinfo", STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, xCPUStack, &xCPUTCB);
+  // xCPUTaskHandle = xTaskCreateStatic(vCPUTaskEntry, "cpuinfo", STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, xCPUStack, &xCPUTCB);
 #endif
 
 #ifdef FSM_TEST
